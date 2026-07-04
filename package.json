@@ -1,0 +1,24 @@
+{
+  "name": "codesense-ai",
+  "version": "1.0.0",
+  "description": "AI-Powered GitHub Pull Request Review Platform",
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "shared",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "docker-compose up --build",
+    "dev:webhook": "npm run dev --workspace=services/webhook-service",
+    "dev:worker": "npm run dev --workspace=services/review-worker",
+    "dev:poster": "npm run dev --workspace=services/github-poster",
+    "dev:api": "npm run dev --workspace=services/api-gateway",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
