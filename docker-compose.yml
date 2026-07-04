@@ -1,0 +1,169 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CodeSense AI — Local Development Infrastructure
+#
+# This file starts 3 infrastructure services:
+#   1. PostgreSQL  — our database (stores users, repos, PRs, reviews)
+#   2. Redis       — fast in-memory store (deduplication locks + AI cache)
+#   3. Kafka       — message queue (decouples webhook ingestion from AI processing)
+#
+# HOW TO USE:
+#   Start everything:   docker-compose up -d
+#   Stop everything:    docker-compose down
+#   See logs:           docker-compose logs -f
+#   Wipe all data:      docker-compose down -v
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # POSTGRESQL — Relational Database
+  #
+  # Stores all persistent data:
+  #   - github_installations (which repos connected our GitHub App)
+  #   - pull_requests        (every PR we received a webhook for)
+  #   - reviews              (AI review results with scores)
+  #   - review_comments      (individual inline AI comments per file/line)
+  #
+  # Port 5432 is the default PostgreSQL port.
+  # We expose it so we can connect with a DB client like TablePlus or DBeaver.
+  # ───────────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: codesense_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: codesense
+    ports:
+      - "5432:5432"
+    volumes:
+      # Named volume = data persists even when container stops
+      # Without this, all your data is lost every time Docker restarts
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Docker will wait for this command to succeed before marking postgres as "healthy"
+      # Other services that depend on postgres will wait for this health check
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # REDIS — In-Memory Cache & Lock Store
+  #
+  # We use Redis for two specific problems:
+  #
+  # 1. WEBHOOK DEDUPLICATION
+  #    GitHub sometimes sends the same webhook twice (network retries).
+  #    Before processing any PR event, we check Redis for a lock key:
+  #    "review:lock:{owner}:{repo}:{pr_number}:{commit_sha}"
+  #    If key exists → already processed → silently ignore
+  #    If key missing → set it (expires in 24h) → process the event
+  #
+  # 2. AI RESPONSE CACHING
+  #    Gemini API costs money per call. If two PRs have identical code changes,
+  #    we cache the AI response for 7 days keyed on the diff's hash.
+  #    Same diff = free cached response, no API call needed.
+  #
+  # Port 6379 is the default Redis port.
+  # ───────────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: codesense_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    # --appendonly yes = Redis saves data to disk so it survives restarts
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # KAFKA — Message Queue (Event Broker)
+  #
+  # WHY KAFKA EXISTS IN THIS PROJECT:
+  #
+  # GitHub sends a webhook when a PR is opened and expects a response in ~10s.
+  # Calling Gemini AI takes 15-30 seconds.
+  # If we call Gemini inside the webhook handler, GitHub times out and stops
+  # sending us webhooks. The whole product breaks.
+  #
+  # Kafka solves this with a queue:
+  #   Webhook Service → "I got a PR event" → publishes to Kafka → responds 200 to GitHub immediately
+  #   Review Worker   → picks up the event from Kafka → takes all the time it needs with Gemini
+  #
+  # We use KRaft mode (no Zookeeper) — the modern, simpler Kafka setup.
+  # Zookeeper was Kafka's old dependency for coordination. KRaft is built-in.
+  #
+  # TOPICS WE USE:
+  #   pr.created      — new PR opened
+  #   pr.updated      — existing PR got new commits
+  #   review.completed — AI review is done, ready to post to GitHub
+  #
+  # Port 9092 = what our Node.js services connect to
+  # Port 9094 = what your local machine connects to (for debugging tools)
+  # ───────────────────────────────────────────────────────────────────────────
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: codesense_kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode — no Zookeeper needed (built into Kafka since 3.3)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # Listeners — two "doors" to reach Kafka:
+      #   PLAINTEXT  → used by Docker services talking to each other (internal)
+      #   CONTROLLER → used internally by Kafka itself for coordination
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Auto-create topics when a service first publishes to them
+      # In production you'd pre-create topics — for dev, auto-create is fine
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # How long to keep messages (7 days)
+      KAFKA_LOG_RETENTION_HOURS: 168
+
+      # Replication factor = 1 (fine for local dev, production uses 3)
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # Unique cluster ID required for KRaft mode
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NAMED VOLUMES
+#
+# These are Docker-managed storage areas on your machine.
+# When you run "docker-compose down", containers stop but volumes PERSIST.
+# Your PostgreSQL data, Redis data, and Kafka messages survive restarts.
+#
+# To completely wipe all data: docker-compose down -v
+# ─────────────────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
