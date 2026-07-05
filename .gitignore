@@ -12,6 +12,10 @@ build/
 .env.local
 .env.production
 
+# GitHub App Private Key - NEVER commit this
+*.pem
+github-app.pem
+
 # Logs
 logs/
 *.log
