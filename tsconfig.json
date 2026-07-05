@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    // Target modern Node.js — ES2022 supports top-level await, etc.
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+
+    // Where compiled JS output goes (each service has its own dist/)
+    "outDir": "./dist",
+
+    // Start compiling from src/
+    "rootDir": "./src",
+
+    // Strict mode = catches real bugs at compile time, not runtime
+    // This is what "TypeScript strict mode" means on your resume
+    "strict": true,
+
+    // Allow importing .json files (useful for configs)
+    "resolveJsonModule": true,
+
+    // Better compatibility with CommonJS modules
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    // Don't erase const enums — keeps runtime behavior predictable
+    "preserveConstEnums": true,
+
+    // Generate .js.map files — helps debuggers show original TS code
+    "sourceMap": true,
+
+    // Skip type checking on node_modules — faster builds
+    "skipLibCheck": true,
+
+    // Ensures imports match actual file casing (prevents Linux/Mac issues)
+    "forceConsistentCasingInFileNames": true,
+
+    // Decorator support (not needed now, but good to have for future)
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "exclude": ["node_modules", "dist"]
+}

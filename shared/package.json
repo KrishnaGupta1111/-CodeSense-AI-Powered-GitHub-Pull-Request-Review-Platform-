@@ -1,0 +1,20 @@
+{
+  "name": "@codesense/shared",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types, Kafka client, Redis client, and logger used by all CodeSense services",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "ioredis": "^5.3.2",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.0"
+  }
+}
