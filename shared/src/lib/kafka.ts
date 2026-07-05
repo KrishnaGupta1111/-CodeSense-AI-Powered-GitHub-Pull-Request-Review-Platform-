@@ -125,3 +125,38 @@ export async function createConsumer(groupId: string): Promise<Consumer> {
 
   return consumer;
 }
+
+/**
+ * Ensures Kafka topics exist, creating them if they don't.
+ *
+ * Kafka consumers throw UNKNOWN_TOPIC_OR_PARTITION if they try to subscribe
+ * to a topic that doesn't exist. This function creates topics upfront.
+ *
+ * Call this ONCE at service startup, before creating consumers.
+ */
+export async function ensureTopics(topicNames: string[]): Promise<void> {
+  const admin = getKafka().admin();
+  await admin.connect();
+
+  try {
+    const existing = await admin.listTopics();
+    const toCreate = topicNames.filter(t => !existing.includes(t));
+
+    if (toCreate.length === 0) {
+      logger.info('Kafka topics already exist', { topics: topicNames });
+      return;
+    }
+
+    await admin.createTopics({
+      topics: toCreate.map(topic => ({
+        topic,
+        numPartitions: 1,      // 1 partition is fine for dev/portfolio
+        replicationFactor: 1,  // 1 replica (only 1 Kafka broker in dev)
+      })),
+    });
+
+    logger.info('Kafka topics created', { created: toCreate });
+  } finally {
+    await admin.disconnect();
+  }
+}

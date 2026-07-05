@@ -1,0 +1,24 @@
+{
+  "name": "@codesense/review-worker",
+  "version": "1.0.0",
+  "description": "Kafka consumer that fetches PR diffs and runs AI code reviews via Gemini",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@codesense/shared": "*",
+    "@google/generative-ai": "^0.21.0",
+    "@octokit/auth-app": "^7.1.0",
+    "@octokit/rest": "^21.0.2",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0"
+  }
+}

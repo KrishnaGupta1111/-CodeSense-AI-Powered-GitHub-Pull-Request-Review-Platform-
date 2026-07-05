@@ -12,7 +12,7 @@
 // Lib exports
 export { logger } from './lib/logger';
 export { getRedisClient, RedisKeys, RedisTTL } from './lib/redis';
-export { getKafka, createProducer, createConsumer } from './lib/kafka';
+export { getKafka, createProducer, createConsumer, ensureTopics } from './lib/kafka';
 
 // Type exports
 export type { ReviewComment, ReviewScore, ReviewResult, ReviewStatus } from './types/review.types';
