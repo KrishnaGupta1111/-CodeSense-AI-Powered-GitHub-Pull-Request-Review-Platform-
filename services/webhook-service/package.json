@@ -1,0 +1,23 @@
+{
+  "name": "@codesense/webhook-service",
+  "version": "1.0.0",
+  "description": "Receives GitHub webhooks, verifies signatures, and publishes events to Kafka",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@codesense/shared": "*",
+    "express": "^4.18.2",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0"
+  }
+}
